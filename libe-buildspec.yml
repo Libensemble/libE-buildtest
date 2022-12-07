@@ -20,15 +20,12 @@ buildspecs:
     tags: [python, ensembles, workflows, concurrent]
     needs: [test_libe_simple_inplace]
     source: src/forces.c
-    sbatch: ["-N 5"]
-    vars:
-      libe_script: ./scripts/run_libe_forces.py
     compilers:
       name: ["^(intel/19.1.2.254)$"]
-      default:
+      config:
         all:
           sbatch: ["-N 1", "-n 4"]
-          run: srun --overcommit -n 5 python $libe_script
+          run: srun --overcommit -n 5 python ./scripts/run_libe_forces.py
         intel:
           cc: mpiicc
           cflags: -O3 -o ./forces.x

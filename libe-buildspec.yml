@@ -8,7 +8,7 @@ buildspecs:
       libe_script: ./scripts/test_1d_sampling.py
     spack:
       install:
-        specs: ["py-libensemble"]
+        specs: ["py-libensemble", "mpich"]
     post_cmds: |
       python $libe_script --comms local --nworkers 4
       mpiexec -n 5 python $libe_script

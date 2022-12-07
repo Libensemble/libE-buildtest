@@ -1,0 +1,34 @@
+buildspecs:
+  test_libe_simple_inplace:
+    type: spack
+    executor: generic.local.(bash|zsh)
+    description: run libEnsemble simple script
+    tags: [python, ensembles, workflows, concurrent]
+    vars:
+      libe_script: ./scripts/test_1d_sampling.py
+    spack:
+      install:
+        specs: ["py-libensemble"]
+    post_cmds: |
+      python $libe_script --comms local --nworkers 4
+      mpiexec -n 5 python $libe_script
+
+  test_libe_sbatch_forces:
+    type: compiler
+    executor: cori.slurm.knl_debug
+    description: run libEnsemble forces script
+    tags: [python, ensembles, workflows, concurrent]
+    needs: [test_libe_simple_inplace]
+    source: src/forces.c
+    sbatch: ["-N 5"]
+    vars:
+      libe_script: ./scripts/run_libe_forces.py
+    compilers:
+      name: ["^(intel/19.1.2.254)$"]
+      default:
+        all:
+          sbatch: ["-N 1", "-n 4"]
+          run: srun --overcommit -n 5 python $libe_script
+        intel:
+          cc: mpiicc
+          cflags: -O3 -o ./forces.x

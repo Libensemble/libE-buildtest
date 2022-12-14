@@ -1,36 +1,63 @@
 buildspecs:
   test_libe_simple_inplace:
-    type: spack
-    executor: generic.local.(bash|zsh)
+    type: script
+    executor: generic.local.bash
     description: run libEnsemble simple script
-    tags: [python, ensembles, workflows, concurrent]
-    vars:
-      libe_script: ./scripts/test_1d_sampling.py
-    spack:
-      install:
-        specs: ["py-libensemble", "mpich"]
-    post_cmds: |
-      python $libe_script --comms local --nworkers 4
-      mpiexec -n 5 python $libe_script
+    tags: [python, ensembles, workflows, concurrent, xsdk]
+    run: |
+      module load python
+      conda create -n libe-buildtest --clone lazy-mpi4py
+      conda activate libe-buildtest
+      git clone -b develop https://github.com/Libensemble/libensemble.git
+      cd libensemble; pip install -e .;cd libensemble/tests/regression_tests/
+      python test_1d_sampling.py --comms local --nworkers 4
+      mpiexec -n 5 python test_1d_sampling.py
 
-  test_libe_sbatch_forces:
-    type: compiler
+  test_libe_sbatch_forces_cori:
+    type: script
     executor: cori.slurm.knl_debug
-    description: run libEnsemble forces script
-    tags: [python, ensembles, workflows, concurrent]
+    description: run libEnsemble forces script on Cori
+    tags: [python, ensembles, workflows, concurrent, xsdk]
     needs: [test_libe_simple_inplace]
-    source: src/forces.c
-    compilers:
-      name: ["^(intel/19.1.2.254)$"]
-      default:
-        all:
-          sbatch: ["-N 1", "-n 4"]
-          run: srun --overcommit -n 5 python ./scripts/run_libe_forces.py
-        intel:
-          cc: mpiicc
-          cflags: -O3 -o ./forces.x
-      config:
-        intel/19.1.2.254:
-          module:
-            load: [impi/2020.up4]
-            swap: [intel, intel/19.1.2.254]
+    env:
+      I_MPI_FABRICS: shm:ofi
+      PYTHONNOUSERSITE: 1
+    sbatch: ["-t 15", "-N 5", "-C knl", "-A m3353"]
+    run: |
+      module load python
+      conda create -n libe-buildtest --clone lazy-mpi4py
+      conda activate libe-buildtest
+      git clone -b develop https://github.com/Libensemble/libensemble.git
+      cd libensemble; pip install -e .; cd libensemble/tests/scaling_tests/forces/forces_app
+      mpicc -O3 -o forces.x forces.c -lm
+      cd ../forces_simple
+      python run_libe_forces.py --comms local --nworkers 4
+      srun --overcommit --ntasks 5 --nodes=1 python run_libe_forces.py
+
+  test_libe_sbatch_forces_perlmutter:
+    type: script
+    executor: perlmutter.slurm.regular
+    description: run libEnsemble forces script on Perlmutter
+    tags: [python, ensembles, workflows, concurrent, xsdk]
+    needs: [test_libe_simple_inplace]
+    env:
+      I_MPI_FABRICS: shm:ofi
+      PYTHONNOUSERSITE: 1
+      SLURM_EXACT: 1
+      SLURM_MEM_PER_NODE: 0
+      MPICH_GPU_SUPPORT_ENABLED: "1"
+    sbatch: ["-t 15", "-N 2", "-C gpu"]
+    run: |
+      module load python PrgEnv-gnu cudatoolkit
+      conda create -n libe-buildtest-pm python=3.9
+      conda activate libe-buildtest-pm
+      MPICC="cc -target-accel=nvidia80 -shared" pip install --force --no-cache-dir --no-binary=mpi4py mpi4py
+      git clone -b develop https://github.com/Libensemble/libensemble.git
+      cd libensemble; pip install -e .; cd libensemble/tests/scaling_tests/forces/forces_app
+      mpicc -O3 -fopenmp -mp=gpu -o forces.x forces.c
+      cd ../forces_gpu; python run_libe_forces.py --comms local --nworkers 8
+
+
+maintainers:
+  - shudson
+  - jnavarro

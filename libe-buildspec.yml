@@ -46,12 +46,13 @@ buildspecs:
       SLURM_EXACT: 1
       SLURM_MEM_PER_NODE: 0
       MPICH_GPU_SUPPORT_ENABLED: "1"
+      MPICH: "cc -target-accel=nvidia80 -shared"
     sbatch: ["-t 15", "-N 2", "-C gpu"]
     run: |
       module load python PrgEnv-gnu cudatoolkit
       conda create -n libe-buildtest-pm python=3.9
       conda activate libe-buildtest-pm
-      MPICC="cc -target-accel=nvidia80 -shared" pip install --force --no-cache-dir --no-binary=mpi4py mpi4py
+      pip install --force --no-cache-dir --no-binary=mpi4py mpi4py
       git clone -b develop https://github.com/Libensemble/libensemble.git
       cd libensemble; pip install -e .; cd libensemble/tests/scaling_tests/forces/forces_app
       mpicc -O3 -fopenmp -mp=gpu -o forces.x forces.c

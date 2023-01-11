@@ -1,7 +1,8 @@
 import numpy as np
 
-# To retrieve our MPI Executor instance
+# To retrieve our MPI Executor and resources instances
 from libensemble.executors.executor import Executor
+from libensemble.resources.resources import Resources
 
 # Optional status codes to display in libE_stats.txt for each gen or sim
 from libensemble.message_numbers import WORKER_DONE, TASK_FAILED
@@ -16,11 +17,20 @@ def run_forces(H, persis_info, sim_specs, libE_info):
     # app arguments: num particles, timesteps, also using num particles as seed
     args = particles + " " + str(10) + " " + particles
 
-    # Retrieve our MPI Executor instance
+    # Retrieve our MPI Executor instance and resources
     exctr = Executor.executor
+    resources = Resources.resources.worker_resources
+
+    # print(f"SIM Nodes {resources.local_node_count} Slots per node: {resources.slot_count}")
 
     # Submit our forces app for execution. Block until the task starts.
-    task = exctr.submit(app_name="forces", app_args=args)
+    task = exctr.submit(
+        app_name="forces",
+        app_args=args,
+        num_nodes=resources.local_node_count,
+        procs_per_node=resources.slot_count,
+        extra_args="--gpus-per-task=1"  # Let slurm assign GPUs
+    )
 
     # Block until the task finishes
     task.wait()
